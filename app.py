@@ -3,7 +3,8 @@ import uvicorn
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 
-from routers.routes_anomalies import router as router_anomalies
+from routers.routes_fine_tuning import router as router_fine_tuning
+from routers.routes_query_ft import router as router_query_ft
 
 from version import VERSION
 from api_configs import PORT
@@ -16,10 +17,11 @@ if (ENVIRONMENT_NAME is not None) and (ENVIRONMENT_NAME.startswith("production")
     # Disable swagger and redocs on production enviroment.
     app = FastAPI(docs_url=None, redoc_url=None)
 else:
-    app = FastAPI(title="AOI - EOT API", description="API para inspeção cosmética.", version=VERSION)
+    app = FastAPI(title="LLM NLP API to", description="API for training.", version=VERSION)
 
 # Insert the routers on the app 
-app.include_router(router_anomalies)
+app.include_router(router_fine_tuning)
+app.include_router(router_query_ft)
 
 
 if __name__ == "__main__":

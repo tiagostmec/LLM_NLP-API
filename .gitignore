@@ -17,6 +17,10 @@ dist/
 *.log
 /logs 
 
+#Concept codes
+/poc
+/data
+
 # Package files
 *.jar
 
