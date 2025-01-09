@@ -8,7 +8,7 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 def query_ft(msg: str):
     # Carregar o modelo e o tokenizer uma única vez para evitar carregamentos repetidos
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_path = 'C:\\Users\\th_sm\\Desktop\\LLM_NLP API\\data\\checkpoint-9'
+    model_path = 'C:\\Users\\th_sm\\Desktop\\LLM_NLP API\\data'
     model = GPT2LMHeadModel.from_pretrained(model_path)
     tokenizer = GPT2Tokenizer.from_pretrained(model_path)
 
@@ -25,12 +25,12 @@ def query_ft(msg: str):
         outputs = model.generate(
             inputs["input_ids"],  # Entrada tokenizada
             attention_mask=attention_mask,  # Máscara de atenção
-            max_length=2000,  # Tamanho máximo da sequência gerada
+            max_length=512,  # Tamanho máximo da sequência gerada
             num_return_sequences=1,  # Número de sequências geradas
             do_sample=True,  # Habilitar amostragem
-            temperature=1.2,  # Controla a aleatoriedade
-            top_p=0.95,  # Amostragem de núcleo (nucleus sampling)
-            top_k=25,  # Amostragem de top-k
+            temperature=0.9,  # Controla a aleatoriedade
+            top_p=0.90,  # Amostragem de núcleo (nucleus sampling)
+            top_k=50,  # Amostragem de top-k
             pad_token_id=tokenizer.pad_token_id  # Usar pad token como eos token
         )
 

@@ -42,15 +42,16 @@ async def fine_tuning(model_type: str, csv_file: str, output_dir: str):
     anime_data = []
 
     # Obter dados de animes pela API com base no anime_id do CSV
-    i = 0
+    print('entrando no for')
+    i=0
     for anime_id in df['anime_id']:
         i = i+1
         data = get_anime_data(anime_id)
         if data:
             anime_data.append(data)
-        if i == 10:
+        if i == 1500:
             break
-        
+     
 
     # Criar DataFrame com os dados dos animes
     df_animes = pd.DataFrame(anime_data)
@@ -109,8 +110,8 @@ async def fine_tuning(model_type: str, csv_file: str, output_dir: str):
         output_dir=output_dir,  
         evaluation_strategy="no",  
         learning_rate=5e-5,  
-        per_device_train_batch_size=4,  
-        num_train_epochs=3,  
+        per_device_train_batch_size=8,  
+        num_train_epochs=10,  
         weight_decay=0.01,  
         logging_dir='./logs',  
         save_steps=500,  
