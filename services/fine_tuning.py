@@ -1,164 +1,161 @@
-import requests
 import pandas as pd
-from datasets import Dataset
-from transformers import GPT2LMHeadModel, GPT2Tokenizer, Trainer, TrainingArguments
-import torch
+import requests
 import time
+from transformers import GPT2Tokenizer, GPT2LMHeadModel, Trainer, TrainingArguments
+from datasets import Dataset
+from peft import LoraConfig, get_peft_model
+from sklearn.model_selection import train_test_split
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Função para obter dados de um anime usando a API Jikan (MyAnimeList)
+# Função para obter os dados do anime da API
 def get_anime_data(anime_id):
-    url = f"https://api.jikan.moe/v4/anime/{anime_id}"  # Atualizando a URL para a nova versão da API
+    url = f"https://api.jikan.moe/v4/anime/{anime_id}"
     response = requests.get(url)
-    time.sleep(0.35)
+    time.sleep(0.35)  # Aguardar para evitar limite de requisições
     if response.status_code == 200:
-        data = response.json().get('data', {})  # Garantir que o conteúdo 'data' existe
-
-        return {
-            "anime_id": data.get("mal_id"),
-            "name": data.get("title", "N/A"),  # Nome do anime
-            "title_english": data.get("title_english", "N/A"),  # Nome em inglês
-            "title_japanese": data.get("title_japanese", "N/A"),  # Nome em japonês
-            "type": data.get("type", "N/A"),  # Tipo de anime (ex. Movie, TV)
-            "episodes": data.get("episodes", "N/A"),  # Número de episódios
-            "rating": data.get("rating", "N/A"),  # Classificação
-            "members": data.get("members", 0),  # Número de membros
-            "synopsis": data.get("synopsis", "Sinopse não disponível."),  # Sinopse
-            "genres": ", ".join([genre["name"] for genre in data.get("genres", [])]),  # Gêneros
-            "image_url": data.get("images", {}).get("jpg", {}).get("image_url", "N/A"),  # URL da imagem
-            "trailer_url": data.get("trailer", {}).get("url", "N/A"),  # URL do trailer, se disponível
-            "score": data.get("score", 0),  # Nota média
-            "popularity": data.get("popularity", 0),  # Popularidade
-            "favorites": data.get("favorites", 0)  # Número de favoritos
+        data = response.json().get('data', {})
+        
+        # Ajustar os dados para o formato desejado
+        # Ensure normalized and cleaned data
+        anime_info = {
+            "title": data.get("title", "N/A").strip(),
+            "synopsis": data.get("synopsis", "N/A").strip(),
+            "genre": ", ".join(sorted([genre["name"].strip() for genre in data.get("genres", [])])),
+            "rating": data.get("rating", "N/A").strip(),
+            "score": float(data.get("score", "0")) if data.get("score") else 0,
+            "episodes": data.get("episodes", 0),
+            "airing_status": data.get("status", "N/A").strip(),
+            "type": data.get("type", "N/A").strip(),
+            "members": int(data.get("members", 0))
         }
+        # Estrutura o par de prompt/resposta para treinamento
+        train_data = [
+            {
+                "prompt": f"Tell me the plot of {anime_info['title']}",
+                "response": anime_info['synopsis']
+            },
+            {
+                "prompt": f"Tell me the genre of {anime_info['title']}",
+                "response": anime_info['genre']
+            },
+            {
+                "prompt": f"Tell me the rating of {anime_info['title']}",
+                "response": anime_info['rating']
+            },
+            {
+                "prompt": f"Tell me about {anime_info['title']}",
+                "response": f"{anime_info['title']} is a {anime_info['type']} anime with {anime_info['episodes']} episodes. It has a rating of {anime_info['rating']} and a score of {anime_info['score']}. The anime is currently {anime_info['airing_status']}."
+            }
+        ]    
+        return train_data
     else:
         print(f"Erro ao obter dados para anime_id {anime_id}: {response.status_code}")
         return None
 
-# Função para criar entrada textual para treinamento
-def create_input_text(row):
-    # Remover quebras de linha extras e formatar o texto para ter uma aparência mais limpa
-    input_text = f"""
-    Anime: {row['name']}.
-    Nome em inglês: {row['title_english']}.
-    Nome em japonês: {row['title_japanese']}.
-    Tipo: {row['type']}.
-    Episódios: {row['episodes']}.
-    Avaliação: {row['rating']}.
-    Membros: {row['members']}.
-    Sinopse: {row['synopsis']}.
-    Gêneros: {row['genres']}.
-    URL da imagem: {row['image_url']}.
-    URL do trailer: {row['trailer_url']}.
-    Nota média: {row['score']}.
-    Popularidade: {row['popularity']}.
-    Número de favoritos: {row['favorites']}.
-    """
-    
-    # Remover quebras de linha (\n) indesejadas
-    input_text = input_text.replace("\n", " ").strip()
-    
-    return input_text
-
-async def fine_tuning(model_type: str, csv_file: str, output_dir: str):
-    # Carregar o CSV com informações dos animes
+# Função para ler o CSV e obter todos os anime_ids
+def get_anime_ids_from_csv(csv_file):
     df = pd.read_csv(csv_file)
+    return df['anime_id'].tolist()  # Retorna uma lista com todos os anime_id
 
-    # Lista para armazenar os dados dos animes
-    anime_data = []
+# Função de treinamento LoRA para GPT-2
+def train_lora_gpt2(csv_file, output_dir="./lora_gpt2_trained", num_train_epochs=5, per_device_train_batch_size=8):
+    # Carregar o modelo GPT-2 e o tokenizador
+    model_name = "gpt2"
+    tokenizer = GPT2Tokenizer.from_pretrained(model_name)
 
-    # Obter dados de animes pela API com base no anime_id do CSV
-    i = 0
-    total_animes = len(df['anime_id'])  # Total de animes no DataFrame
-    for anime_id in df['anime_id']:
-        i += 1
-        data = get_anime_data(anime_id)
-        if data:
-            anime_data.append(data)
+    # Definir o pad_token como o eos_token
+    tokenizer.pad_token = tokenizer.eos_token  # Usa o token de fim de sequência (eos_token) como o token de preenchimento
+
+    model = GPT2LMHeadModel.from_pretrained(model_name)
+
+    # Ler os anime_ids do CSV
+    anime_ids = get_anime_ids_from_csv(csv_file)
+
+    # Preencher o train_data com informações de todos os animes
+    train_data = []
+    max_animes = 500 # Número máximo de animes que você deseja processar
+
+    for i, anime_id in enumerate(anime_ids):
+        anime_data = get_anime_data(anime_id)
+        if anime_data:
+            train_data.extend(anime_data)  # Adiciona os dados de cada anime ao train_data
         
-        # Exibe a porcentagem de progresso a cada iteração
-        if i % 100 == 0:  # Exibe a porcentagem a cada 100 iterações (ajuste conforme necessário)
-            percentage = (i / total_animes) * 100
-            print(f"Progresso: {percentage:.2f}% ({i}/{total_animes})")
-            
-        # Caso queira limitar o número de animes, adicione a condição de parada
-        # if i == 150:
-        #     break
+        # Verificar se atingiu o número máximo de animes
+        if i + 1 >= max_animes:
+            print(f"Atingido o número máximo de {max_animes} animes.")
+            break
 
-    # Criando o dataset de treinamento
-    dataset = pd.DataFrame(anime_data)
-    dataset['input_text'] = dataset.apply(create_input_text, axis=1)
+    # Processar os dados de treinamento
+    # Process the dataset into a dictionary compatible with Dataset.from_dict
+    def preprocess_data(data):
+        prompts = [item['prompt'] for item in data]
+        responses = [item['response'] for item in data]
+        inputs = [f"{prompt}\n{response}" for prompt, response in zip(prompts, responses)]
 
-    # Inicializando o Tokenizer e Modelo GPT-2
-    tokenizer = GPT2Tokenizer.from_pretrained(model_type)
-    tokenizer.pad_token = tokenizer.eos_token  # Definindo o token de padding como eos
-    model = GPT2LMHeadModel.from_pretrained(model_type).to(device)  # Carregando o modelo para o dispositivo
-    # Verificar as primeiras linhas do dataset
-    print(dataset.head())  # Exibe as primeiras 5 linhas do DataFrame
-
-    # Tokenizando os dados
-    def tokenize_function(examples):
-        encodings = tokenizer(
-            examples['input_text'], 
-            padding="max_length",  # Garantir que o texto seja padronizado para o comprimento máximo
-            truncation=True, 
-            max_length=512,  # Garantir que o texto não ultrapasse 512 tokens
-            return_tensors='pt'
-        )
-        encodings['labels'] = encodings.input_ids.detach().clone()
-
-        # Adicionar a máscara de atenção explicitamente
-        attention_mask = (encodings['input_ids'] != tokenizer.pad_token_id).long()
-        encodings['attention_mask'] = attention_mask
-        
-        return encodings
+        # Tokenize inputs and create attention masks
+        encodings = tokenizer(inputs, padding=True, truncation=True, return_tensors="pt")
+        return {
+            "input_ids": encodings["input_ids"],
+            "attention_mask": encodings["attention_mask"],
+            "labels": encodings["input_ids"],  # Language modeling uses input_ids as labels
+        }
 
 
-    train_dataset = Dataset.from_pandas(dataset[['input_text']])
-    train_dataset = train_dataset.map(tokenize_function, batched=True)
-    # Exemplo para verificar os dados tokenizados
-    print(train_dataset[0])  # Verifique o primeiro exemplo após a tokenização
+# Create the dataset from the processed data
+    processed_data = preprocess_data(train_data)
+    train_dataset = Dataset.from_dict(processed_data)
 
-    # Definindo os argumentos de treinamento
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        evaluation_strategy="no",
-        learning_rate=5e-5,
-        per_device_train_batch_size=4,
-        num_train_epochs=4,
-        weight_decay=0.01,
-        save_total_limit=1,
-        logging_dir='./logs', 
-        logging_steps=25,
+    # Configuração do LoRA
+    lora_config = LoraConfig(
+    r=16,  # Increase rank for better adaptation
+    lora_alpha=64,  # Higher scaling factor
+    lora_dropout=0.05,  # Lower dropout for stable training
+    bias="all"  # Allow biases to adapt
     )
 
-    # Inicializando o Trainer
+
+    # Aplicando LoRA ao modelo
+    model = get_peft_model(model, lora_config)
+
+    # Definir argumentos de treinamento
+    training_args = TrainingArguments(
+    output_dir=output_dir,
+    evaluation_strategy="steps",  # Validate periodically
+    eval_steps=500,  # Frequency of validation
+    save_steps=1000,  # Frequency of saving checkpoints
+    save_total_limit=2,  # Keep only the best checkpoints
+    per_device_train_batch_size=8,  # Adjust to your hardware
+    gradient_accumulation_steps=8,  # Simulate larger batches
+    learning_rate=5e-5,  # Adjust learning rate
+    num_train_epochs=num_train_epochs,
+    weight_decay=0.01,  # Regularization
+    logging_dir="./logs",
+    logging_steps=100,
+)
+
+  # Dividir os dados em treinamento e avaliação
+    train_data, eval_data = train_test_split(train_data, test_size=0.1, random_state=42)
+
+    # Processar os dados de avaliação
+    processed_eval_data = preprocess_data(eval_data)
+    eval_dataset = Dataset.from_dict(processed_eval_data)
+
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
-    )
+        eval_dataset=eval_dataset,  # Adicionar o conjunto de avaliação
+)
 
-    # Treinando o modelo
+    # Treinar o modelo
     trainer.train()
 
-    # Salvar o modelo fine-tuned
-    trainer.save_model(output_dir)
+    # Salvar o modelo treinado
+    model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    # Função para gerar uma resposta do modelo
-    def generate_anime_info(anime_name):
-        input_text = f"Me fale sobre {anime_name}."
-        inputs = tokenizer(input_text, return_tensors="pt", padding=True, truncation=True).to(device)  # Passar os inputs para o dispositivo
-        # Adicionar a máscara de atenção
-        attention_mask = (inputs['input_ids'] != tokenizer.pad_token_id).long().to(device)
-        outputs = model.generate(inputs['input_ids'], attention_mask=attention_mask, max_length=200, num_return_sequences=1, no_repeat_ngram_size=2)
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response
+    print(f"Modelo treinado e salvo em {output_dir}")
 
 
-    # Exemplo de uso
-    anime_name = "Kimi no Na wa"
-    response = generate_anime_info(anime_name)
-    print(response)
+# Exemplo de uso da função de treinamento
+csv_file = 'C:\\Users\\th_sm\\Desktop\\LLM_NLP API\\data\\anime.csv'  # Caminho para o seu arquivo CSV
+train_lora_gpt2(csv_file)
