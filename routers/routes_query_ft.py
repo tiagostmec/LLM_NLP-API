@@ -14,7 +14,7 @@ class FineTuning:
         response_description="Returns inference message",
         response_model=QueryFtResponse,
     )
-    async def fine_tune(self, data: QueryFtRequest):
+    async def ask_question(self, data: QueryFtRequest):
         response_data = query_ft(
             msg = data.user_message
         )   
