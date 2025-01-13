@@ -2,7 +2,7 @@ from fastapi_utils.cbv import cbv
 from fastapi_utils.inferring_router import InferringRouter
 from schemas.schema_query_ft import QueryFtRequest, QueryFtResponse
 from fastapi.responses import JSONResponse
-from services.query_ft import query_ft
+from services.query_ft import ask_question
 
 
 router = InferringRouter()
@@ -14,8 +14,8 @@ class FineTuning:
         response_description="Returns inference message",
         response_model=QueryFtResponse,
     )
-    async def ask_question(self, data: QueryFtRequest):
-        response_data = query_ft(
+    async def query_ft(self, data: QueryFtRequest):
+        response_data = ask_question(
             msg = data.user_message
         )   
         return JSONResponse(status_code=200, content=response_data)

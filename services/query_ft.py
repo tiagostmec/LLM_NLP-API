@@ -1,16 +1,12 @@
 import torch
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
-
-model_path = 'C:\\Users\\th_sm\\Desktop\\LLM_NLP API\\lora_gpt2_trained'
-model = GPT2LMHeadModel.from_pretrained(model_path)
-tokenizer = GPT2Tokenizer.from_pretrained(model_path)
-
-
-tokenizer.pad_token = tokenizer.eos_token
-
-
 def ask_question(question):
+
+    model_path = 'C:\\Users\\th_sm\\Desktop\\LLM_NLP API\\lora_gpt2_trained'
+    model = GPT2LMHeadModel.from_pretrained(model_path)
+    tokenizer = GPT2Tokenizer.from_pretrained(model_path)
+    tokenizer.pad_token = tokenizer.eos_token
    
     input_text = (
         f"You are an anime expert. Answer the following question based on the database:\n"

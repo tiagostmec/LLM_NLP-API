@@ -54,7 +54,7 @@ def get_anime_ids_from_csv(csv_file):
     return df['anime_id'].tolist()  
 
 
-def fine_tune(csv_file, model_type, output_dir="./lora_gpt2_trained"):
+def fine_tuning(csv_file, model_type, output_dir="./lora_gpt2_trained"):
     
     model_name = model_type
     tokenizer = GPT2Tokenizer.from_pretrained(model_name)
@@ -66,7 +66,7 @@ def fine_tune(csv_file, model_type, output_dir="./lora_gpt2_trained"):
     anime_ids = get_anime_ids_from_csv(csv_file)
 
     train_data = []
-    max_animes = 500
+    max_animes = 12000
 
     for i, anime_id in enumerate(anime_ids):
         anime_data = get_anime_data(anime_id)
