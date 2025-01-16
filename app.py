@@ -5,6 +5,8 @@ from fastapi import FastAPI
 
 from routers.routes_fine_tuning import router as router_fine_tuning
 from routers.routes_query_ft import router as router_query_ft
+from routers.routes_rag_hf import router as router_rag_hf
+from routers.routes_rag_openai import router as router_rag_openai
 
 from version import VERSION
 from api_configs import PORT
@@ -22,6 +24,8 @@ else:
 # Insert the routers on the app 
 app.include_router(router_fine_tuning)
 app.include_router(router_query_ft)
+app.include_router(router_rag_hf)
+app.include_router(router_rag_openai)
 
 
 if __name__ == "__main__":

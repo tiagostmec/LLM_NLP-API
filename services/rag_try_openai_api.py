@@ -71,6 +71,3 @@ def answer_anime_question_gpt3(anime_name):
     
     return response['choices'][0]['text'].strip()
 
-anime_name = "Kimi no Na wa"
-response = answer_anime_question_gpt3(anime_name)
-print(response)

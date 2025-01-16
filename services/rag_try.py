@@ -39,27 +39,12 @@ def get_anime_id_from_csv(anime_name, csv_path="C:\\Users\\th_sm\\Desktop\\LLM_N
     else:
         return None
 
-model_choice = "bart"  # Altere entre "gpt2", "gpt_neo", "gpt_j", "bart", "t5"
-
-if model_choice == "gpt2":
-    model = GPT2LMHeadModel.from_pretrained("gpt2")
-    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
-elif model_choice == "gpt_neo":
-    model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-neo-1.3B")
-    tokenizer = GPT2TokenizerNeo.from_pretrained("EleutherAI/gpt-neo-1.3B")
-elif model_choice == "gpt_j":
-    model = GPTNeoForCausalLM.from_pretrained("EleutherAI/gpt-j-6B")
-    tokenizer = GPT2TokenizerNeo.from_pretrained("EleutherAI/gpt-j-6B")
-elif model_choice == "bart":
-    model = BartForConditionalGeneration.from_pretrained("facebook/bart-large-cnn")
-    tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
-elif model_choice == "t5":
-    model = T5ForConditionalGeneration.from_pretrained("t5-small")
-    tokenizer = T5Tokenizer.from_pretrained("t5-small", legacy=False)
-else:
-    raise ValueError("Modelo não reconhecido. Escolha entre 'gpt2', 'gpt_neo', 'gpt_j', 'bart' ou 't5'.")
 
 def generate_anime_response(anime_info):
+    model_choice = "bart"  # Altere entre "gpt2", "gpt_neo", "gpt_j", "bart", "t5"
+    model = BartForConditionalGeneration.from_pretrained("facebook/bart-large-cnn")
+    tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
+
     prompt = f"""
     Write a brief and engaging description of this anime, focusing on the main plot and characters.
     Anime: {anime_info['title']}
@@ -106,7 +91,7 @@ def generate_anime_response(anime_info):
 
     return response
 
-def answer_anime_question_rag(anime_name):
+async def answer_anime_question_rag(anime_name):
     anime_id = get_anime_id_from_csv(anime_name)
     
     if anime_id is None:
@@ -118,8 +103,9 @@ def answer_anime_question_rag(anime_name):
         response = generate_anime_response(anime_info)
         return response
     else:
-        return "Sorry, I couldn't retrieve information about that anime."
+        try:
+            raise ValueError("Sorry, I couldn't find information about this anime. Error Code: 9999")
+        except ValueError as e:
+            return e
 
-anime_name = "Gintama" 
-response = answer_anime_question_rag(anime_name)
-print(response)
+
