@@ -19,14 +19,13 @@ if (ENVIRONMENT_NAME is not None) and (ENVIRONMENT_NAME.startswith("production")
     # Disable swagger and redocs on production enviroment.
     app = FastAPI(docs_url=None, redoc_url=None)
 else:
-    app = FastAPI(title="LLM NLP API to", description="API for training.", version=VERSION)
+    app = FastAPI(title="LLM NLP API", description="API for training hard skills.", version=VERSION)
 
 # Insert the routers on the app 
 app.include_router(router_fine_tuning)
 app.include_router(router_query_ft)
 app.include_router(router_rag_hf)
 app.include_router(router_rag_openai)
-
 
 if __name__ == "__main__":
     API_PORT = os.getenv("API_PORT", PORT)
